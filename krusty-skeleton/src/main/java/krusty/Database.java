@@ -7,6 +7,7 @@ import java.sql.*;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.ArrayList;
 
 import static krusty.Jsonizer.toJson;
 
@@ -91,7 +92,42 @@ public class Database {
 	}
 
 	public String getPallets(Request req, Response res) {
-		return "{\"pallets\":[]}";
+		String sql = "SELECT id, cookie, production_date, customer, IF(is_blocked, 'yes', 'no') AS blocked FROM Pallets";
+		ArrayList<String> conditions = new ArrayList<>();
+		ArrayList<String> values = new ArrayList<>();
+
+		if (req.queryParams("from") != null) {
+			conditions.add("production_date >= ?");
+			values.add(req.queryParams("from"));
+		}
+		if (req.queryParams("to") != null) {
+			conditions.add("production_date <= ?");
+			values.add(req.queryParams("to"));
+		}
+		if (req.queryParams("cookie") != null) {
+			conditions.add("cookie = ?");
+			values.add(req.queryParams("cookie"));
+		}
+		if (req.queryParams("blocked") != null) {
+			conditions.add("is_blocked = ?");
+			values.add(req.queryParams("blocked").equals("yes") ? "TRUE" : "FALSE");
+		}
+		if (!conditions.isEmpty()) {
+			sql += " WHERE " + String.join(" AND ", conditions);
+		}
+		sql += " ORDER BY production_date DESC";
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+
+			for (int i = 0; i < values.size(); i++) {
+				stmt.setString(i + 1, values.get(i));
+			}
+			try (ResultSet rs = stmt.executeQuery()){
+				return Jsonizer.toJson(rs, "pallets");
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return "{\"pallets\":[]}";
+		}
 	}
 
 	public String reset(Request req, Response res) {

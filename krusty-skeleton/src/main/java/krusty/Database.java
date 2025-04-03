@@ -73,13 +73,12 @@ public class Database {
 	}
 
 	public String getRecipes(Request req, Response res) {
-		String query = """
-            SELECT R.cookie_name AS cookie, S.ingredient AS raw_material, I.amount, S.unit 
-            FROM Recipes R, Storage S, Ingredients I
-            WHERE R.ID = I.recipe_id
-            AND I.storage_id = S.ID
-            ORDER BY cookie ASC;
-        """;
+		String query =  "SELECT R.cookie_name AS cookie, S.ingredient AS raw_material, I.amount, S.unit" +
+            			"FROM Recipes R, Storage S, Ingredients I" +
+						"WHERE R.ID = I.recipe_id" +
+           				"AND I.storage_id = S.ID" +
+            			"ORDER BY cookie ASC;";
+
 		try (PreparedStatement stmt = connection.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
 

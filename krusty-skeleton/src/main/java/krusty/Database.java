@@ -36,7 +36,7 @@ public class Database {
 	// TODO: Implement and change output in all methods below!
 
 	public String getCustomers(Request req, Response res) {
-		String query = "SELECT name, adress FROM Customer";
+		String query = "SELECT name, address FROM Customers";
 		try (PreparedStatement stmt = connection.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
 

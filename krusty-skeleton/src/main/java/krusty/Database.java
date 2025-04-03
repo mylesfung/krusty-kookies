@@ -36,7 +36,7 @@ public class Database {
 	// TODO: Implement and change output in all methods below!
 
 	public String getCustomers(Request req, Response res) {
-		String query = "SELECT name, adress FROM Customer";
+		String query = "SELECT name, address FROM Customers";
 		try (PreparedStatement stmt = connection.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
 
@@ -77,7 +77,7 @@ public class Database {
             			"FROM Recipes R, Storage S, Ingredients I" +
 						"WHERE R.ID = I.recipe_id" +
            				"AND I.storage_id = S.ID" +
-            			"ORDER BY cookie ASC;";
+            			"ORDER BY cookie;";
 
 		try (PreparedStatement stmt = connection.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {

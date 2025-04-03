@@ -95,7 +95,80 @@ public class Database {
 	}
 
 	public String reset(Request req, Response res) {
-		return "{}";
+
+		try (Statement stmt = connection.createStatement()) {
+
+			stmt.execute("SET FOREIGN_KEY_CHECKS = 0;");
+			stmt.execute("TRUNCATE TABLE Customers;");
+			stmt.execute("TRUNCATE TABLE Recipes;");
+			stmt.execute("TRUNCATE TABLE Storage;");
+			stmt.execute("TRUNCATE TABLE Ingredients;");
+			stmt.execute("TRUNCATE TABLE Orders;");
+			stmt.execute("TRUNCATE TABLE Pallets;");
+			stmt.execute("TRUNCATE TABLE Amount;");
+			stmt.execute("SET FOREIGN_KEY_CHECKS = 1;");
+
+			stmt.execute(
+                "INSERT INTO Customers (name, address) VALUES " +
+                "('Bjudkakor AB', 'Ystad'), " +
+                "('Finkakor AB', 'Helsingborg'), " +
+                "('Gästkakor AB', 'Hässleholm'), " +
+                "('Kaffebröd AB', 'Landskrona'), " +
+                "('Kalaskakor AB', 'Trelleborg'), " +
+                "('Partykakor AB', 'Kristianstad'), " +
+                "('Skånekakor AB', 'Perstorp'), " +
+                "('Småbröd AB', 'Malmö');"
+            );
+
+			stmt.execute(
+                "INSERT INTO Recipes (cookie_name) VALUES " +
+                "('Almond delight'), ('Amneris'), ('Berliner'), ('Nut cookie'), ('Nut ring'), ('Tango');"
+            );
+
+			stmt.execute(
+                "INSERT INTO Storage (ingredient, amount, unit) VALUES " +
+                "('Bread crumbs', 500000, 'g'), " +
+                "('Butter', 500000, 'g'), " +
+                "('Chocolate', 500000, 'g'), " +
+                "('Chopped almonds', 500000, 'g'), " +
+                "('Cinnamon', 500000, 'g'), " +
+                "('Egg whites', 500000, 'ml'), " +
+                "('Eggs', 500000, 'g'), " +
+                "('Fine-ground nuts', 500000, 'g'), " +
+                "('Flour', 500000, 'g'), " +
+                "('Ground, roasted nuts', 500000, 'g'), " +
+                "('Icing sugar', 500000, 'g'), " +
+                "('Marzipan', 500000, 'g'), " +
+                "('Potato starch', 500000, 'g'), " +
+                "('Roasted, chopped nuts', 500000, 'g'), " +
+                "('Sodium bicarbonate', 500000, 'g'), " +
+                "('Sugar', 500000, 'g'), " +
+                "('Vanilla sugar', 500000, 'g'), " +
+                "('Vanilla', 500000, 'g'), " +
+                "('Wheat flour', 500000, 'g');"
+            );
+
+			stmt.execute(
+					"INSERT INTO Ingredients (recipe_id, storage_id, amount) VALUES " +
+							// Almond delight
+							"(1, 2, 400), (1, 4, 279), (1, 5, 10), (1, 9, 400), (1, 16, 270), " +
+							// Amneris
+							"(2, 2, 250), (2, 7, 250), (2, 12, 750), (2, 13, 25), (2, 19, 25), " +
+							// Berliner
+							"(3, 2, 250), (3, 3, 50), (3, 7, 50), (3, 9, 350), (3, 11, 100), (3, 17, 5), " +
+							// Nut cookie
+							"(4, 1, 125), (4, 3, 50), (4, 6, 350), (4, 8, 750), (4, 10, 625), (4, 16, 375), " +
+							// Nut ring
+							"(5, 2, 450), (5, 9, 450), (5, 11, 190), (5, 14, 225), " +
+							// Tango
+							"(6, 2, 200), (6, 9, 300), (6, 15, 4), (6, 16, 250), (6, 18, 2);"
+			);
+			return "{\"status\": \"ok\"}";
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return "{}";
+		}
 	}
 
 	public String createPallet(Request req, Response res) {

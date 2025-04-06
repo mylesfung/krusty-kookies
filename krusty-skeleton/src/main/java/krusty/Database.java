@@ -207,13 +207,8 @@ public class Database {
 		}
 	}
 
+	/* Creates a new pallet, where the cookie is specified with the query parameter cookie */
 	public String createPallet(Request req, Response res) {
-		// Creates a new pallet, where the cookie is specified with the query parameter cookie
-		//
-		// 1. create new pallet, using req.queryParams and NOW()
-		// 2. return pallet_id
-		// 3. update storage based on recipe
-
 		String cookie;
 		if (req.queryParams("cookie") != null) {
 			cookie = req.queryParams("cookie");
@@ -221,7 +216,6 @@ public class Database {
 			System.out.println("ERROR: No cookie specified in request");
 			return "";
 		}
-
 		int newPalletID = 0;
 		int recipeID;
 		String checkCookieSQL = "select * from Recipes where cookie_name = ?";
@@ -254,7 +248,6 @@ public class Database {
 			System.out.println("SQL EXCEPTION: " + e.getMessage());
 			return "{\"status\": \"error\"}";
 		}
-
 		// Update storage
 		String ingredientSQL = "select * from Ingredients where recipe_id = ?";
 		try (PreparedStatement ps = connection.prepareStatement(ingredientSQL)) {
@@ -277,7 +270,6 @@ public class Database {
 			System.out.println("SQL EXCEPTION: " + e.getMessage());
 			return "{\"status\": \"error\"}";
 		}
-
 		return String.format("{\"status\": \"ok\",\"id\": %d}", newPalletID);
 	}
 }

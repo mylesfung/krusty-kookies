@@ -92,38 +92,38 @@ public class Database {
 	}
 
 	public String getPallets(Request req, Response res) {
-		String sql = "SELECT id, cookie, production_datetime, customer, IF(is_blocked, 'yes', 'no') AS blocked FROM Pallets";
-		ArrayList<String> conditions = new ArrayList<>();
+		String sql = "select p.ID as id, " +
+				"r.cookie_name as cookie, " +
+				"p.production_datetime as production_date, " +
+				"NULL AS customer, " +
+				"if(p.is_blocked, 'yes', 'no') as blocked " +
+				"from Pallets p, Recipes r " +
+				"where p.recipe_id = r.ID ";
 		ArrayList<String> values = new ArrayList<>();
 
 		if (req.queryParams("from") != null) {
-			conditions.add("production_datetime >= ?");
+			sql += " AND p.production_datetime >= ?";
 			values.add(req.queryParams("from"));
 		}
 		if (req.queryParams("to") != null) {
-			conditions.add("production_datetime <= ?");
+			sql += " AND p.production_datetime <= ?";
 			values.add(req.queryParams("to"));
 		}
 		if (req.queryParams("cookie") != null) {
-			conditions.add("cookie = ?");
+			sql += " AND r.cookie_name = ?";
 			values.add(req.queryParams("cookie"));
 		}
 		if (req.queryParams("blocked") != null) {
-			conditions.add("is_blocked = ?");
+			sql += " AND p.is_blocked = ?";
 			values.add(req.queryParams("blocked").equals("yes") ? "TRUE" : "FALSE");
 		}
-		if (!conditions.isEmpty()) {
-			sql += " WHERE " + String.join(" AND ", conditions);
-		}
-		sql += " ORDER BY production_datetime DESC";
+		sql += " ORDER BY p.production_datetime DESC";
 		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-
 			for (int i = 0; i < values.size(); i++) {
 				stmt.setString(i + 1, values.get(i));
 			}
-			try (ResultSet rs = stmt.executeQuery()){
-				return Jsonizer.toJson(rs, "pallets");
-			}
+			ResultSet rs = stmt.executeQuery();
+			return Jsonizer.toJson(rs, "pallets");
 		} catch (SQLException e) {
 			e.printStackTrace();
 			return "{\"pallets\":[]}";

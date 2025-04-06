@@ -222,18 +222,17 @@ public class Database {
 			return "";
 		}
 
-		// Get recipeID and create new pallet
 		int newPalletID = 0;
 		int recipeID;
 		String checkCookieSQL = "select * from Recipes where cookie_name = ?";
 		try (PreparedStatement ps = connection.prepareStatement(checkCookieSQL)) {
 			ps.setString(1, cookie);
-			ResultSet rs = ps.executeQuery();
-			if (!rs.next()) {
+			ResultSet recipes = ps.executeQuery();
+			if (!recipes.next()) {
 				// Cookie name does not exist in Recipes
 				return "{\"status\": \"error\"}";
 			} else {
-				recipeID = rs.getInt("ID");
+				recipeID = recipes.getInt("ID");
 
 				// Create new pallet
 				String insertPalletSQL = "insert into Pallets (production_datetime, location, recipe_id) " +
@@ -253,6 +252,30 @@ public class Database {
 			}
 		} catch (SQLException e) {
 			System.out.println("SQL EXCEPTION: " + e.getMessage());
+			return "{\"status\": \"error\"}";
+		}
+
+		// Update storage
+		String ingredientSQL = "select * from Ingredients where recipe_id = ?";
+		try (PreparedStatement ps = connection.prepareStatement(ingredientSQL)) {
+			ps.setInt(1, recipeID);
+			ResultSet ingredients = ps.executeQuery();
+			while (ingredients.next()) {
+				int amt = ingredients.getInt("amount");
+				int ingID = ingredients.getInt("storage_id");
+				String updateSQL = "update Storage set amount = amount - ? where ID = ?";
+				try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
+					stmt.setInt(1, amt);
+					stmt.setInt(2, ingID);
+					stmt.executeUpdate();
+				} catch (SQLException e) {
+					e.printStackTrace();
+					return "{\"status\": \"error\"}";
+				}
+			}
+		} catch (SQLException e) {
+			System.out.println("SQL EXCEPTION: " + e.getMessage());
+			return "{\"status\": \"error\"}";
 		}
 
 		return String.format("{\"status\": \"ok\",\"id\": %d}", newPalletID);

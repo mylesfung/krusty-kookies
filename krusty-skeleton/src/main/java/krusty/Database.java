@@ -37,7 +37,7 @@ public class Database {
 	// TODO: Implement and change output in all methods below!
 
 	public String getCustomers(Request req, Response res) {
-		String query = "SELECT name, address FROM Customers";
+		String query = "SELECT name, address FROM Customers ORDER BY name";
 		try (PreparedStatement stmt = connection.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
 
@@ -49,7 +49,7 @@ public class Database {
 	}
 
 	public String getRawMaterials(Request req, Response res) {
-		String query = "SELECT ingredient AS name, amount, unit FROM Storage;";
+		String query = "SELECT ingredient AS name, amount, unit FROM Storage ORDER BY name";
 		try (PreparedStatement stmt = connection.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
 
@@ -62,7 +62,7 @@ public class Database {
 	}
 
 	public String getCookies(Request req, Response res) {
-		String query = "SELECT cookie_name AS name FROM Recipes";
+		String query = "SELECT cookie_name AS name FROM Recipes ORDER BY name";
 		try(PreparedStatement stmt = connection.prepareStatement(query);
 			ResultSet rs = stmt.executeQuery()) {
 			return Jsonizer.toJson(rs, "cookies");
@@ -78,7 +78,7 @@ public class Database {
             			"FROM Recipes R, Storage S, Ingredients I" +
 						"WHERE R.ID = I.recipe_id" +
            				"AND I.storage_id = S.ID" +
-            			"ORDER BY cookie ASC;";
+            			"ORDER BY cookie;";
 
 		try (PreparedStatement stmt = connection.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
@@ -92,16 +92,16 @@ public class Database {
 	}
 
 	public String getPallets(Request req, Response res) {
-		String sql = "SELECT id, cookie, production_date, customer, IF(is_blocked, 'yes', 'no') AS blocked FROM Pallets";
+		String sql = "SELECT id, cookie, production_datetime, customer, IF(is_blocked, 'yes', 'no') AS blocked FROM Pallets";
 		ArrayList<String> conditions = new ArrayList<>();
 		ArrayList<String> values = new ArrayList<>();
 
 		if (req.queryParams("from") != null) {
-			conditions.add("production_date >= ?");
+			conditions.add("production_datetime >= ?");
 			values.add(req.queryParams("from"));
 		}
 		if (req.queryParams("to") != null) {
-			conditions.add("production_date <= ?");
+			conditions.add("production_datetime <= ?");
 			values.add(req.queryParams("to"));
 		}
 		if (req.queryParams("cookie") != null) {
@@ -115,7 +115,7 @@ public class Database {
 		if (!conditions.isEmpty()) {
 			sql += " WHERE " + String.join(" AND ", conditions);
 		}
-		sql += " ORDER BY production_date DESC";
+		sql += " ORDER BY production_datetime DESC";
 		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 
 			for (int i = 0; i < values.size(); i++) {
@@ -208,6 +208,53 @@ public class Database {
 	}
 
 	public String createPallet(Request req, Response res) {
-		return "{}";
+		// Creates a new pallet, where the cookie is specified with the query parameter cookie
+		//
+		// 1. create new pallet, using req.queryParams and NOW()
+		// 2. return pallet_id
+		// 3. update storage based on recipe
+
+		String cookie;
+		if (req.queryParams("cookie") != null) {
+			cookie = req.queryParams("cookie");
+		} else {
+			System.out.println("ERROR: No cookie specified in request");
+			return "";
+		}
+
+		// Get recipeID and create new pallet
+		int newPalletID = 0;
+		int recipeID;
+		String checkCookieSQL = "select * from Recipes where cookie_name = ?";
+		try (PreparedStatement ps = connection.prepareStatement(checkCookieSQL)) {
+			ps.setString(1, cookie);
+			ResultSet rs = ps.executeQuery();
+			if (!rs.next()) {
+				// Cookie name does not exist in Recipes
+				return "{\"status\": \"error\"}";
+			} else {
+				recipeID = rs.getInt("ID");
+
+				// Create new pallet
+				String insertPalletSQL = "insert into Pallets (production_datetime, location, recipe_id) " +
+						"values(NOW(), 'Krusty Factory', ?)";
+				try (PreparedStatement stmt = connection.prepareStatement(insertPalletSQL, Statement.RETURN_GENERATED_KEYS)) {
+					stmt.setInt(1, recipeID);
+					stmt.executeUpdate();
+					// Set new pallet ID
+					ResultSet key = stmt.getGeneratedKeys();
+					if (key.next()) {
+						newPalletID = key.getInt(1);
+					}
+				} catch (SQLException e) {
+					e.printStackTrace();
+					return "{\"status\": \"error\"}";
+				}
+			}
+		} catch (SQLException e) {
+			System.out.println("SQL EXCEPTION: " + e.getMessage());
+		}
+
+		return String.format("{\"status\": \"ok\",\"id\": %d}", newPalletID);
 	}
 }

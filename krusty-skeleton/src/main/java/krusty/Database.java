@@ -15,6 +15,12 @@ public class Database {
 	/**
 	 * Modify it to fit your environment and then use this string when connecting to your database!
 	 */
+
+	/**
+	 * Adjusts for ingredient values being given per 100
+	 * cookies and the total number of cookies per pallet
+	 */
+	static final int COOKIE_PALLET_MULTIPLIER = 36*10*15/100;
 	public void connect() {
 		try {
 			connection = DriverManager.getConnection(jdbcString, jdbcUsername, jdbcPassword);
@@ -258,7 +264,7 @@ public class Database {
 				int ingID = ingredients.getInt("storage_id");
 				String updateSQL = "update Storage set amount = amount - ? where ID = ?";
 				try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
-					stmt.setInt(1, amt);
+					stmt.setInt(1, amt * COOKIE_PALLET_MULTIPLIER);
 					stmt.setInt(2, ingID);
 					stmt.executeUpdate();
 				} catch (SQLException e) {

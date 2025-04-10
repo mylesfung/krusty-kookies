@@ -121,7 +121,7 @@ public class Database {
 		}
 		if (req.queryParams("blocked") != null) {
 			sql += " AND p.is_blocked = ?";
-			values.add(req.queryParams("blocked").equals("yes") ? "TRUE" : "FALSE");
+			values.add(req.queryParams("blocked").equals("yes") ? "1" : "0");
 		}
 		sql += " ORDER BY p.production_datetime DESC";
 		try (PreparedStatement stmt = connection.prepareStatement(sql)) {

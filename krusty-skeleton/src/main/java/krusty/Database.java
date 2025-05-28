@@ -23,7 +23,7 @@ public class Database {
 	static final int COOKIE_PALLET_MULTIPLIER = 36*10*15/100;
 	public void connect() {
 		try {
-			connection = DriverManager.getConnection(jdbcString, jdbcUsername, jdbcPassword);
+			con = DriverManager.getConnection(jdbcString, jdbcUsername, jdbcPassword);
 			System.out.println("Connected to the database successfully!");
 		} catch (SQLException e) {
 			System.err.println("Failed to connect to the database.");
@@ -38,13 +38,13 @@ public class Database {
 	private static final String jdbcPassword = "gzr549sb";
 	private static final String jdbcString = "jdbc:mysql://puccini.cs.lth.se/" + jdbcUsername;
 
-	private Connection connection;
+	private Connection con;
 
 	// TODO: Implement and change output in all methods below!
 
 	public String getCustomers(Request req, Response res) {
 		String query = "SELECT name, address FROM Customers ORDER BY name";
-		try (PreparedStatement stmt = connection.prepareStatement(query);
+		try (PreparedStatement stmt = con.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
 
 			return Jsonizer.toJson(rs, "customers");
@@ -56,7 +56,7 @@ public class Database {
 
 	public String getRawMaterials(Request req, Response res) {
 		String query = "SELECT ingredient AS name, amount, unit FROM Storage ORDER BY name";
-		try (PreparedStatement stmt = connection.prepareStatement(query);
+		try (PreparedStatement stmt = con.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
 
 			return Jsonizer.toJson(rs, "raw-materials");
@@ -69,7 +69,7 @@ public class Database {
 
 	public String getCookies(Request req, Response res) {
 		String query = "SELECT cookie_name AS name FROM Recipes ORDER BY name";
-		try(PreparedStatement stmt = connection.prepareStatement(query);
+		try(PreparedStatement stmt = con.prepareStatement(query);
 			ResultSet rs = stmt.executeQuery()) {
 			return Jsonizer.toJson(rs, "cookies");
 		} catch (SQLException e) {
@@ -86,7 +86,7 @@ public class Database {
            				"AND I.storage_id = S.ID" +
             			"ORDER BY cookie;";
 
-		try (PreparedStatement stmt = connection.prepareStatement(query);
+		try (PreparedStatement stmt = con.prepareStatement(query);
 			 ResultSet rs = stmt.executeQuery()) {
 
 			return Jsonizer.toJson(rs, "recipes");
@@ -124,7 +124,7 @@ public class Database {
 			values.add(req.queryParams("blocked").equals("yes") ? "1" : "0");
 		}
 		sql += " ORDER BY p.production_datetime DESC";
-		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+		try (PreparedStatement stmt = con.prepareStatement(sql)) {
 			for (int i = 0; i < values.size(); i++) {
 				stmt.setString(i + 1, values.get(i));
 			}
@@ -138,8 +138,8 @@ public class Database {
 
 	public String reset(Request req, Response res) {
 
-		try (Statement stmt = connection.createStatement()) {
-
+		try (Statement stmt = con.createStatement()) {
+			con.setAutoCommit(false);
 			stmt.execute("SET FOREIGN_KEY_CHECKS = 0;");
 			stmt.execute("TRUNCATE TABLE Customers;");
 			stmt.execute("TRUNCATE TABLE Recipes;");
@@ -149,7 +149,6 @@ public class Database {
 			stmt.execute("TRUNCATE TABLE Pallets;");
 			stmt.execute("TRUNCATE TABLE Amount;");
 			stmt.execute("SET FOREIGN_KEY_CHECKS = 1;");
-
 			stmt.execute(
                 "INSERT INTO Customers (name, address) VALUES " +
                 "('Bjudkakor AB', 'Ystad'), " +
@@ -161,12 +160,10 @@ public class Database {
                 "('Skånekakor AB', 'Perstorp'), " +
                 "('Småbröd AB', 'Malmö');"
             );
-
 			stmt.execute(
                 "INSERT INTO Recipes (cookie_name) VALUES " +
                 "('Almond delight'), ('Amneris'), ('Berliner'), ('Nut cookie'), ('Nut ring'), ('Tango');"
             );
-
 			stmt.execute(
                 "INSERT INTO Storage (ingredient, amount, unit) VALUES " +
                 "('Bread crumbs', 500000, 'g'), " +
@@ -189,7 +186,6 @@ public class Database {
                 "('Vanilla', 500000, 'g'), " +
                 "('Wheat flour', 500000, 'g');"
             );
-
 			stmt.execute(
 					"INSERT INTO Ingredients (recipe_id, storage_id, amount) VALUES " +
 							// Almond delight
@@ -205,10 +201,20 @@ public class Database {
 							// Tango
 							"(6, 2, 200), (6, 9, 300), (6, 15, 4), (6, 16, 250), (6, 18, 2);"
 			);
+			con.commit();
+			con.setAutoCommit(true);
 			return "{\"status\": \"ok\"}";
 
 		} catch (SQLException e) {
 			e.printStackTrace();
+			if (con != null) {
+				try {
+					con.rollback();
+					con.setAutoCommit(true);
+				} catch (SQLException excep) {
+					excep.printStackTrace();
+				}
+			}
 			return "{}";
 		}
 	}
@@ -225,7 +231,7 @@ public class Database {
 		int newPalletID = 0;
 		int recipeID;
 		String checkCookieSQL = "select * from Recipes where cookie_name = ?";
-		try (PreparedStatement ps = connection.prepareStatement(checkCookieSQL)) {
+		try (PreparedStatement ps = con.prepareStatement(checkCookieSQL)) {
 			ps.setString(1, cookie);
 			ResultSet recipes = ps.executeQuery();
 			if (!recipes.next()) {
@@ -237,7 +243,8 @@ public class Database {
 				// Create new pallet
 				String insertPalletSQL = "insert into Pallets (production_datetime, location, recipe_id) " +
 						"values(NOW(), 'Krusty Factory', ?)";
-				try (PreparedStatement stmt = connection.prepareStatement(insertPalletSQL, Statement.RETURN_GENERATED_KEYS)) {
+				try (PreparedStatement stmt = con.prepareStatement(insertPalletSQL, Statement.RETURN_GENERATED_KEYS)) {
+					con.setAutoCommit(false);
 					stmt.setInt(1, recipeID);
 					stmt.executeUpdate();
 					// Set new pallet ID
@@ -245,8 +252,18 @@ public class Database {
 					if (key.next()) {
 						newPalletID = key.getInt(1);
 					}
+					con.commit();
+					con.setAutoCommit(true);
 				} catch (SQLException e) {
 					e.printStackTrace();
+					if (con != null) {
+						try {
+							con.rollback();
+							con.setAutoCommit(true);
+						} catch (SQLException excep) {
+							excep.printStackTrace();
+						}
+					}
 					return "{\"status\": \"error\"}";
 				}
 			}
@@ -256,19 +273,30 @@ public class Database {
 		}
 		// Update storage
 		String ingredientSQL = "select * from Ingredients where recipe_id = ?";
-		try (PreparedStatement ps = connection.prepareStatement(ingredientSQL)) {
+		try (PreparedStatement ps = con.prepareStatement(ingredientSQL)) {
 			ps.setInt(1, recipeID);
 			ResultSet ingredients = ps.executeQuery();
 			while (ingredients.next()) {
 				int amt = ingredients.getInt("amount");
 				int ingID = ingredients.getInt("storage_id");
 				String updateSQL = "update Storage set amount = amount - ? where ID = ?";
-				try (PreparedStatement stmt = connection.prepareStatement(updateSQL)) {
+				try (PreparedStatement stmt = con.prepareStatement(updateSQL)) {
+					con.setAutoCommit(false);
 					stmt.setInt(1, amt * COOKIE_PALLET_MULTIPLIER);
 					stmt.setInt(2, ingID);
 					stmt.executeUpdate();
+					con.commit();
+					con.setAutoCommit(true);
 				} catch (SQLException e) {
 					e.printStackTrace();
+					if (con != null) {
+						try {
+							con.rollback();
+							con.setAutoCommit(true);
+						} catch (SQLException excep) {
+							excep.printStackTrace();
+						}
+					}
 					return "{\"status\": \"error\"}";
 				}
 			}

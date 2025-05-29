@@ -92,13 +92,13 @@ public class KrustyTests {
 		String expected = readFile("ExpectedPalletsByCookie.json");
 
 		SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
-		String today = formatter.format(new Date());
+		String today = formatter.format(new Date()) + " 00:00:00";
 		
 		String actual = Unirest.get(BASE_URL + "pallets")
 				.queryString("cookie",  "Nut ring")
 				.queryString("from", today)
 				.asString().getBody();
-		
+
 		JSONAssert.assertEquals(expected, actual, false);
 	}
 	

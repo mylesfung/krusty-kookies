@@ -223,30 +223,56 @@ public class Database {
 
 	/* Creates a new pallet, where the cookie is specified with the query parameter cookie */
 	public String createPallet(Request req, Response res) {
-		String cookie;
-		if (req.queryParams("cookie") != null) {
-			cookie = req.queryParams("cookie");
-		} else {
+		String cookie = req.queryParams("cookie");
+		if (cookie == null) {
 			System.out.println("ERROR: No cookie specified in request");
 			return "";
 		}
 		int newPalletID = 0;
 		int recipeID;
-		String checkCookieSQL = "select * from Recipes where cookie_name = ?";
-		try (PreparedStatement ps = con.prepareStatement(checkCookieSQL)) {
-			ps.setString(1, cookie);
-			ResultSet recipes = ps.executeQuery();
-			if (!recipes.next()) {
-				// Cookie name does not exist in Recipes
-				return "{\"status\": \"error\"}";
-			} else {
-				recipeID = recipes.getInt("ID");
 
-				// Create new pallet
+		try {
+			con.setAutoCommit(false);
+
+			String checkCookieSQL = "select * from Recipes where cookie_name = ?";
+			try (PreparedStatement ps = con.prepareStatement(checkCookieSQL)) {
+				ps.setString(1, cookie);
+				ResultSet recipes = ps.executeQuery();
+
+				if (!recipes.next()) {
+					con.rollback();
+					con.setAutoCommit(true);
+					return "{\"status\": \"error\"}";
+			}
+				recipeID = recipes.getInt("ID");
+			}
+
+			// 2. Check ingredient availability
+			String ingredientSQL = "SELECT storage_id, amount FROM Ingredients WHERE recipe_id = ?";
+			try (PreparedStatement ps = con.prepareStatement(ingredientSQL)) {
+				ps.setInt(1, recipeID);
+				ResultSet rs = ps.executeQuery();
+				while (rs.next()) {
+					int storageID = rs.getInt("storage_id");
+					int requiredAmount = rs.getInt("amount") * COOKIE_PALLET_MULTIPLIER;
+
+					String checkStockSQL = "SELECT amount FROM Storage WHERE ID = ?";
+					try (PreparedStatement stockStmt = con.prepareStatement(checkStockSQL)) {
+						stockStmt.setInt(1, storageID);
+						ResultSet stock = stockStmt.executeQuery();
+						if (!stock.next() || stock.getInt("amount") < requiredAmount) {
+							con.rollback();
+							con.setAutoCommit(true);
+							return "{\"status\": \"error\", \"message\": \"Insufficient ingredients\"}";
+						}
+					}
+				}
+			}
+
+				// Create new pallet (Insert)
 				String insertPalletSQL = "insert into Pallets (production_datetime, location, recipe_id) " +
 						"values(NOW(), 'Krusty Factory', ?)";
 				try (PreparedStatement stmt = con.prepareStatement(insertPalletSQL, Statement.RETURN_GENERATED_KEYS)) {
-					con.setAutoCommit(false);
 					stmt.setInt(1, recipeID);
 					stmt.executeUpdate();
 					// Set new pallet ID
@@ -254,58 +280,43 @@ public class Database {
 					if (key.next()) {
 						newPalletID = key.getInt(1);
 					}
-					con.commit();
-					con.setAutoCommit(true);
-				} catch (SQLException e) {
-					e.printStackTrace();
-					if (con != null) {
-						try {
-							con.rollback();
-							con.setAutoCommit(true);
-						} catch (SQLException excep) {
-							excep.printStackTrace();
-						}
-					}
-					return "{\"status\": \"error\"}";
 				}
+
+			// Update storage
+				try (PreparedStatement ps = con.prepareStatement(ingredientSQL)) {
+					ps.setInt(1, recipeID);
+					ResultSet ingredients = ps.executeQuery();
+
+					while (ingredients.next()) {
+						int amt = ingredients.getInt("amount");
+						int ingID = ingredients.getInt("storage_id");
+
+						String updateSQL = "update Storage set amount = amount - ? where ID = ?";
+						try (PreparedStatement stmt = con.prepareStatement(updateSQL)) {
+							stmt.setInt(1, amt * COOKIE_PALLET_MULTIPLIER);
+							stmt.setInt(2, ingID);
+							stmt.executeUpdate();
+						}
+
+					}
+
+
 			}
+				con.commit();
+				con.setAutoCommit(true);
+				return String.format("{\"status\": \"ok\",\"id\": %d}", newPalletID);
 		} catch (SQLException e) {
+			e.printStackTrace();
+			try {
+				con.rollback();
+				con.setAutoCommit(true);
+			} catch (SQLException excep) {
+				excep.printStackTrace();
+			}
+
 			System.out.println("SQL EXCEPTION: " + e.getMessage());
 			return "{\"status\": \"error\"}";
 		}
-		// Update storage
-		String ingredientSQL = "select * from Ingredients where recipe_id = ?";
-		try (PreparedStatement ps = con.prepareStatement(ingredientSQL)) {
-			ps.setInt(1, recipeID);
-			ResultSet ingredients = ps.executeQuery();
-			while (ingredients.next()) {
-				int amt = ingredients.getInt("amount");
-				int ingID = ingredients.getInt("storage_id");
-				String updateSQL = "update Storage set amount = amount - ? where ID = ?";
-				try (PreparedStatement stmt = con.prepareStatement(updateSQL)) {
-					con.setAutoCommit(false);
-					stmt.setInt(1, amt * COOKIE_PALLET_MULTIPLIER);
-					stmt.setInt(2, ingID);
-					stmt.executeUpdate();
-					con.commit();
-					con.setAutoCommit(true);
-				} catch (SQLException e) {
-					e.printStackTrace();
-					if (con != null) {
-						try {
-							con.rollback();
-							con.setAutoCommit(true);
-						} catch (SQLException excep) {
-							excep.printStackTrace();
-						}
-					}
-					return "{\"status\": \"error\"}";
-				}
-			}
-		} catch (SQLException e) {
-			System.out.println("SQL EXCEPTION: " + e.getMessage());
-			return "{\"status\": \"error\"}";
-		}
-		return String.format("{\"status\": \"ok\",\"id\": %d}", newPalletID);
+
 	}
 }
